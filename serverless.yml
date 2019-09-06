@@ -1,0 +1,43 @@
+service: iam-user-cleanup
+
+provider:
+  name: aws
+  runtime: java8
+  memorySize: 1024
+  timeout: 60
+  region: us-west-2
+  deploymentBucket:
+    name: ${opt:bucket}
+    serverSideEncryption: "AES256"
+  cfnRole: "arn:aws:iam::${opt:account}:role/cloudformation/deployer/cloudformation-deployer"
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+       - iam:DeleteAccessKey
+       - iam:DeleteVirtualMFADevice
+       - iam:DeactivateMFADevice
+      Resource: '*'
+  logRetentionInDays: 7
+  stackTags:
+    Creator: serverless
+    Environment: admin
+    Project: ${self:service}
+    Team: platform
+    Visibility: internal
+
+package:
+  artifact: target/scala-2.12/iam-user-cleanup.jar
+
+functions:
+  IamUserCleanup:
+    handler: com.dwolla.lambda.iam.Handler
+
+resources:
+  Description: CloudFormation custom resource to remove IAM User keys/MFA tokens that would otherwise prevent an IAM user from being removed by CloudFormation
+  Outputs:
+    Function:
+      Description: Lambda Function Service Token
+      Value:
+        'Fn::GetAtt': [IamUserCleanupLambdaFunction, Arn]
+      Export:
+        Name: ${self:service}:${opt:stage}:IamUserCleanupArn
