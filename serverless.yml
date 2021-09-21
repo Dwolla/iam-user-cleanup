@@ -2,34 +2,38 @@ service: iam-user-cleanup
 
 provider:
   name: aws
-  runtime: java8
+  runtime: java11
   memorySize: 1024
   timeout: 60
   region: us-west-2
+  stage: ${env:STAGE}
   deploymentBucket:
-    name: ${opt:bucket}
+    name: ${env:BUCKET}
     serverSideEncryption: "AES256"
-  cfnRole: "arn:aws:iam::${opt:account}:role/cloudformation/deployer/cloudformation-deployer"
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-       - iam:ListAccessKeys
-       - iam:ListVirtualMFADevices
-       - iam:ListMFADevices
-       - iam:DeleteAccessKey
-       - iam:DeleteVirtualMFADevice
-       - iam:DeactivateMFADevice
-      Resource: '*'
+  iam:
+    deploymentRole: "arn:aws:iam::${env:ACCOUNT}:role/cloudformation/deployer/cloudformation-deployer"
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+           - iam:ListAccessKeys
+           - iam:ListVirtualMFADevices
+           - iam:ListMFADevices
+           - iam:DeleteAccessKey
+           - iam:DeleteVirtualMFADevice
+           - iam:DeactivateMFADevice
+          Resource: '*'
   logRetentionInDays: 7
   stackTags:
     Creator: serverless
-    Environment: admin
+    Environment: ${env:STAGE}
     Project: ${self:service}
     Team: platform
     Visibility: internal
+  lambdaHashingVersion: 20201221
 
 package:
-  artifact: target/scala-2.12/iam-user-cleanup.jar
+  artifact: ${env:ARTIFACT_PATH}
 
 functions:
   IamUserCleanup:
@@ -43,4 +47,4 @@ resources:
       Value:
         'Fn::GetAtt': [IamUserCleanupLambdaFunction, Arn]
       Export:
-        Name: ${self:service}:${opt:stage}:IamUserCleanupArn
+        Name: ${self:service}:${env:STAGE}:IamUserCleanupArn

@@ -7,7 +7,7 @@ import com.dwolla.lambda.iam.model._
 import com.dwolla.testutils.IOSpec
 import io.circe._
 import io.circe.syntax._
-import org.scalatest._
+import org.scalatest.matchers.should.Matchers
 
 class HandleRequestSpec extends IOSpec with Matchers {
 

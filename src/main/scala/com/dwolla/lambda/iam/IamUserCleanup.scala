@@ -2,7 +2,7 @@ package com.dwolla.lambda.iam
 
 import cats.data._
 import cats.effect._
-import cats.implicits._
+import cats.syntax.all._
 import com.dwolla.lambda.cloudformation.CloudFormationRequestType._
 import com.dwolla.lambda.cloudformation._
 import com.dwolla.lambda.iam.IamUserCleanupLambda.RequestValidation.requestTypeToAction
@@ -29,32 +29,32 @@ object IamUserCleanupLambda {
   }
 
   implicit class RequestValidation(val req: CloudFormationCustomResourceRequest) extends AnyVal {
-    def validatedResourceProperty[T : Decoder](property: String): ValidatedNel[RequestValidationError, T] =
+    def validatedResourceProperty[T : Decoder](property: String): EitherNel[RequestValidationError, T] =
       (for {
         resourceProperties <- req.ResourceProperties.toRight(MissingResourcePropertiesValidationError)
         json <- resourceProperties(property).toRight(MissingResourceProperty(property))
         t <- json.as[T].leftMap(InvalidUsername(json, _))
-      } yield t).toValidatedNel
+      } yield t).toEitherNel
 
-    def validateUsername: ValidatedNel[RequestValidationError, String] =
+    def validateUsername: EitherNel[RequestValidationError, String] =
       validatedResourceProperty[String]("username")
 
-    def validateUserArn: ValidatedNel[RequestValidationError, String] =
+    def validateUserArn: EitherNel[RequestValidationError, String] =
       validatedResourceProperty[String]("userArn")
 
-    def validatePhysicalResourceId: ValidatedNel[RequestValidationError, PhysicalResourceId] = {
+    def validatePhysicalResourceId: EitherNel[RequestValidationError, PhysicalResourceId] = {
       val inboundPhysicalId = req.RequestType -> req.PhysicalResourceId match {
-        case (CreateRequest, None) => None.validNel
-        case (UpdateRequest | DeleteRequest, Some(id: PhysicalResourceId)) => Some(id).validNel
-        case (CreateRequest, _) => CreateRequestWithPhysicalResourceId.invalidNel
-        case _ => MissingPhysicalResourceId.invalidNel
+        case (CreateRequest, None) => None.rightNel
+        case (UpdateRequest | DeleteRequest, Some(id: PhysicalResourceId)) => Some(id).rightNel
+        case (CreateRequest, _) => CreateRequestWithPhysicalResourceId.leftNel
+        case _ => MissingPhysicalResourceId.leftNel
       }
 
-      (inboundPhysicalId, validateUserArn.map(tagPhysicalResourceId)).mapN(_ getOrElse _)
+      (inboundPhysicalId, validateUserArn.map(tagPhysicalResourceId)).parMapN(_ getOrElse _)
     }
 
-    def validated: ValidatedNel[RequestValidationError, RequestParameters] =
-      (requestTypeToAction(req.RequestType).valid, validatePhysicalResourceId, validateUsername).mapN(RequestParameters)
+    def validated: EitherNel[RequestValidationError, RequestParameters] =
+      (requestTypeToAction(req.RequestType).asRight, validatePhysicalResourceId, validateUsername).parMapN(RequestParameters)
   }
 
 }

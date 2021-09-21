@@ -7,3 +7,4 @@ logs/
 *.orig
 .ruby-version
 .serverless/
+.bsp/
