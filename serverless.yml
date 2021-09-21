@@ -22,6 +22,8 @@ provider:
            - iam:DeleteAccessKey
            - iam:DeleteVirtualMFADevice
            - iam:DeactivateMFADevice
+           - iam:ListSSHPublicKeys
+           - iam:DeleteSSHPublicKey
           Resource: '*'
   logRetentionInDays: 7
   stackTags:

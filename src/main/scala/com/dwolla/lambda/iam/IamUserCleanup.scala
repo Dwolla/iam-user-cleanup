@@ -75,8 +75,10 @@ class IamUserCleanupLambda[F[_] : ConcurrentEffect](iamResource: Resource[F, Iam
       iamResource.use { iam =>
         val delMfa = Kleisli(iam.deleteMfaDevices)
         val delAK = Kleisli(iam.deleteAccessKeys)
+        val delSshKeys = Kleisli(iam.deleteSshKeys)
 
-        (delMfa, delAK).mapN(_ |+| _)
+        (delMfa, delAK, delSshKeys)
+          .mapN(_ |+| _ |+| _)
           .run(username)
           .map(_ => handlerResponse(physicalResourceId, username))
       }
@@ -90,15 +92,16 @@ class IamUserCleanupLambda[F[_] : ConcurrentEffect](iamResource: Resource[F, Iam
 trait IamAlg[F[_]] {
   def deleteMfaDevices(username: String): F[Unit]
   def deleteAccessKeys(username: String): F[Unit]
+  def deleteSshKeys(username: String): F[Unit]
 }
 
 object IamAlg {
 
-  def acquireIamClient[F[_] : Sync]: F[IamAsyncClient] = Sync[F].delay {
+  private def acquireIamClient[F[_] : Sync]: F[IamAsyncClient] = Sync[F].delay {
     IamAsyncClient.builder().region(Region.AWS_GLOBAL).build()
   }
 
-  def shutdownIamClient[F[_] : Sync](client: IamAsyncClient): F[Unit] =
+  private def shutdownIamClient[F[_] : Sync](client: IamAsyncClient): F[Unit] =
     Sync[F].delay(client.close())
 
   def resource[F[_] : ConcurrentEffect]: Resource[F, IamAlg[F]] =
@@ -116,8 +119,7 @@ object IamAlg {
     override def deleteMfaDevices(username: String): F[Unit] =
       listUserMfaDevices(username)
         .map(_.serialNumber())
-        .map(sn => deactivateMfaDevice(username, sn) >> deleteMfaDevice(sn).attempt.void)
-        .parJoin(10)
+        .flatMap(sn => deactivateMfaDevice(username, sn) >> deleteMfaDevice(sn).attempt.void)
         .compile
         .drain
 
@@ -125,8 +127,9 @@ object IamAlg {
       unfold(client.listAccessKeysPaginator(ListAccessKeysRequest.builder().userName(username).build()))(_.accessKeyMetadata)
 
     override def deleteAccessKeys(username: String): F[Unit] =
-      listUserAccessKeys(username).map(_.accessKeyId()).map(deleteAccessKey(username, _))
-        .parJoin(10)
+      listUserAccessKeys(username)
+        .map(_.accessKeyId())
+        .flatMap(deleteAccessKey(username, _))
         .compile
         .drain
 
@@ -139,6 +142,19 @@ object IamAlg {
 
     private def deleteAccessKey(username: String, accessKeyId: String): Stream[F, Unit] =
       eval[F](DeleteAccessKeyRequest.builder().accessKeyId(accessKeyId).userName(username).build())(client.deleteAccessKey)(void)
+
+    private def listSshPublicKeysForUser(username: String): Stream[F, SSHPublicKeyMetadata] =
+      unfold(client.listSSHPublicKeysPaginator(ListSshPublicKeysRequest.builder().userName(username).build()))(_.sshPublicKeys())
+
+    private def deleteSshPublicKey(username: String, sshKeyId: String): Stream[F, Unit] =
+      eval[F](DeleteSshPublicKeyRequest.builder().userName(username).sshPublicKeyId(sshKeyId).build())(client.deleteSSHPublicKey)(void)
+
+    override def deleteSshKeys(username: String): F[Unit] =
+      listSshPublicKeysForUser(username)
+        .map(_.sshPublicKeyId())
+        .flatMap(deleteSshPublicKey(username, _))
+        .compile
+        .drain
 
   }
 

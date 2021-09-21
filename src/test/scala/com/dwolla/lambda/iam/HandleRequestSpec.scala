@@ -24,6 +24,8 @@ class HandleRequestSpec extends IOSpec with Matchers {
       override def deleteAccessKeys(username: String): IO[Unit] =
         IO.raiseError(new NotImplementedError)
 
+      override def deleteSshKeys(username: String): IO[Unit] =
+        IO.raiseError(new NotImplementedError)
     })
 
     for {
@@ -38,20 +40,26 @@ class HandleRequestSpec extends IOSpec with Matchers {
     for {
       deferredDeleteMfaDevices <- Deferred[IO, String]
       deferredDeleteAccessKeys <- Deferred[IO, String]
+      deferredDeleteSshKeys <- Deferred[IO, String]
       resource = Resource.pure[IO, IamAlg[IO]](new IamAlg[IO] {
         override def deleteMfaDevices(username: String): IO[Unit] =
           deferredDeleteMfaDevices.complete(username)
 
         override def deleteAccessKeys(username: String): IO[Unit] =
           deferredDeleteAccessKeys.complete(username)
+
+        override def deleteSshKeys(username: String): IO[Unit] =
+          deferredDeleteSshKeys.complete(username)
       })
       res <- new IamUserCleanupLambda(resource).handleRequest(RequestParameters(Delete, physicalResourceId, username))
       deletedMfaUsername <- deferredDeleteMfaDevices.get
       deletedAccessKeyUsername <- deferredDeleteAccessKeys.get
+      deferredDeleteSshKeyUsername <- deferredDeleteSshKeys.get
     } yield {
       res should be(HandlerResponse(physicalResourceId, JsonObject("username"-> username.asJson)))
       deletedMfaUsername should be(username)
       deletedAccessKeyUsername should be(username)
+      deferredDeleteSshKeyUsername should be(username)
     }
   }
 
