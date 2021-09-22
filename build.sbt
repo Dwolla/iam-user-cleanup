@@ -24,7 +24,7 @@ lazy val `iam-user-cleanup` = (project in file("."))
     maintainer := developers.value.head.email,
     libraryDependencies ++= {
       val circeVersion = "0.14.1"
-      val fs2Version = "2.5.9"
+      val fs2Version = "3.1.2"
       val awsJavaSdkVersion = "2.17.43"
 
       Seq(
