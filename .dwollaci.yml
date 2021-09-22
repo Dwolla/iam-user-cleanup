@@ -10,7 +10,7 @@ stages:
     steps:
       - |
         export ACCOUNT=455620323323
-        export STAGE=Admin
+        export STAGE=admin
         export BUCKET=dwolla-code
         . ${NVM_DIR}/nvm.sh --no-use
         nvm install
