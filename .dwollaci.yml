@@ -2,21 +2,17 @@ stages:
   build:
     nodeLabel: sbt
     steps:
-      - sbt assembly
+      - sbt test universal:packageBin
     filesToStash:
-      - serverless.yml
-      - .nvmrc
-      - target/scala-2.12/iam-user-cleanup.jar
+      - '**'
   publish:
-    nodeLabel: nvm-deployer
+    nodeLabel: nvm-sbt-deployer
     steps:
       - |
+        export ACCOUNT=455620323323
+        export STAGE=Admin
+        export BUCKET=dwolla-code
         . ${NVM_DIR}/nvm.sh --no-use
         nvm install
-        npm install -g npm
-        npm install -g serverless
-        serverless deploy \
-          --region us-west-2 \
-          --account 455620323323 \
-          --bucket dwolla-code \
-          --stage admin
+        npm install -g npm && npm install -g serverless
+        sbt deploy

@@ -2,7 +2,7 @@ package com.dwolla.lambda.iam
 
 import cats.data._
 import cats.effect._
-import cats.implicits._
+import cats.syntax.all._
 import com.dwolla.lambda.cloudformation.CloudFormationRequestType._
 import com.dwolla.lambda.cloudformation._
 import com.dwolla.lambda.iam.IamUserCleanupLambda.RequestValidation.requestTypeToAction
@@ -29,32 +29,32 @@ object IamUserCleanupLambda {
   }
 
   implicit class RequestValidation(val req: CloudFormationCustomResourceRequest) extends AnyVal {
-    def validatedResourceProperty[T : Decoder](property: String): ValidatedNel[RequestValidationError, T] =
+    def validatedResourceProperty[T : Decoder](property: String): EitherNel[RequestValidationError, T] =
       (for {
         resourceProperties <- req.ResourceProperties.toRight(MissingResourcePropertiesValidationError)
         json <- resourceProperties(property).toRight(MissingResourceProperty(property))
         t <- json.as[T].leftMap(InvalidUsername(json, _))
-      } yield t).toValidatedNel
+      } yield t).toEitherNel
 
-    def validateUsername: ValidatedNel[RequestValidationError, String] =
+    def validateUsername: EitherNel[RequestValidationError, String] =
       validatedResourceProperty[String]("username")
 
-    def validateUserArn: ValidatedNel[RequestValidationError, String] =
+    def validateUserArn: EitherNel[RequestValidationError, String] =
       validatedResourceProperty[String]("userArn")
 
-    def validatePhysicalResourceId: ValidatedNel[RequestValidationError, PhysicalResourceId] = {
+    def validatePhysicalResourceId: EitherNel[RequestValidationError, PhysicalResourceId] = {
       val inboundPhysicalId = req.RequestType -> req.PhysicalResourceId match {
-        case (CreateRequest, None) => None.validNel
-        case (UpdateRequest | DeleteRequest, Some(id: PhysicalResourceId)) => Some(id).validNel
-        case (CreateRequest, _) => CreateRequestWithPhysicalResourceId.invalidNel
-        case _ => MissingPhysicalResourceId.invalidNel
+        case (CreateRequest, None) => None.rightNel
+        case (UpdateRequest | DeleteRequest, Some(id: PhysicalResourceId)) => Some(id).rightNel
+        case (CreateRequest, _) => CreateRequestWithPhysicalResourceId.leftNel
+        case _ => MissingPhysicalResourceId.leftNel
       }
 
-      (inboundPhysicalId, validateUserArn.map(tagPhysicalResourceId)).mapN(_ getOrElse _)
+      (inboundPhysicalId, validateUserArn.map(tagPhysicalResourceId)).parMapN(_ getOrElse _)
     }
 
-    def validated: ValidatedNel[RequestValidationError, RequestParameters] =
-      (requestTypeToAction(req.RequestType).valid, validatePhysicalResourceId, validateUsername).mapN(RequestParameters)
+    def validated: EitherNel[RequestValidationError, RequestParameters] =
+      (requestTypeToAction(req.RequestType).asRight, validatePhysicalResourceId, validateUsername).parMapN(RequestParameters)
   }
 
 }
@@ -75,8 +75,10 @@ class IamUserCleanupLambda[F[_] : ConcurrentEffect](iamResource: Resource[F, Iam
       iamResource.use { iam =>
         val delMfa = Kleisli(iam.deleteMfaDevices)
         val delAK = Kleisli(iam.deleteAccessKeys)
+        val delSshKeys = Kleisli(iam.deleteSshKeys)
 
-        (delMfa, delAK).mapN(_ |+| _)
+        (delMfa, delAK, delSshKeys)
+          .mapN(_ |+| _ |+| _)
           .run(username)
           .map(_ => handlerResponse(physicalResourceId, username))
       }
@@ -90,15 +92,16 @@ class IamUserCleanupLambda[F[_] : ConcurrentEffect](iamResource: Resource[F, Iam
 trait IamAlg[F[_]] {
   def deleteMfaDevices(username: String): F[Unit]
   def deleteAccessKeys(username: String): F[Unit]
+  def deleteSshKeys(username: String): F[Unit]
 }
 
 object IamAlg {
 
-  def acquireIamClient[F[_] : Sync]: F[IamAsyncClient] = Sync[F].delay {
+  private def acquireIamClient[F[_] : Sync]: F[IamAsyncClient] = Sync[F].delay {
     IamAsyncClient.builder().region(Region.AWS_GLOBAL).build()
   }
 
-  def shutdownIamClient[F[_] : Sync](client: IamAsyncClient): F[Unit] =
+  private def shutdownIamClient[F[_] : Sync](client: IamAsyncClient): F[Unit] =
     Sync[F].delay(client.close())
 
   def resource[F[_] : ConcurrentEffect]: Resource[F, IamAlg[F]] =
@@ -116,8 +119,7 @@ object IamAlg {
     override def deleteMfaDevices(username: String): F[Unit] =
       listUserMfaDevices(username)
         .map(_.serialNumber())
-        .map(sn => deactivateMfaDevice(username, sn) >> deleteMfaDevice(sn).attempt.void)
-        .parJoin(10)
+        .flatMap(sn => deactivateMfaDevice(username, sn) >> deleteMfaDevice(sn).attempt.void)
         .compile
         .drain
 
@@ -125,8 +127,9 @@ object IamAlg {
       unfold(client.listAccessKeysPaginator(ListAccessKeysRequest.builder().userName(username).build()))(_.accessKeyMetadata)
 
     override def deleteAccessKeys(username: String): F[Unit] =
-      listUserAccessKeys(username).map(_.accessKeyId()).map(deleteAccessKey(username, _))
-        .parJoin(10)
+      listUserAccessKeys(username)
+        .map(_.accessKeyId())
+        .flatMap(deleteAccessKey(username, _))
         .compile
         .drain
 
@@ -139,6 +142,19 @@ object IamAlg {
 
     private def deleteAccessKey(username: String, accessKeyId: String): Stream[F, Unit] =
       eval[F](DeleteAccessKeyRequest.builder().accessKeyId(accessKeyId).userName(username).build())(client.deleteAccessKey)(void)
+
+    private def listSshPublicKeysForUser(username: String): Stream[F, SSHPublicKeyMetadata] =
+      unfold(client.listSSHPublicKeysPaginator(ListSshPublicKeysRequest.builder().userName(username).build()))(_.sshPublicKeys())
+
+    private def deleteSshPublicKey(username: String, sshKeyId: String): Stream[F, Unit] =
+      eval[F](DeleteSshPublicKeyRequest.builder().userName(username).sshPublicKeyId(sshKeyId).build())(client.deleteSSHPublicKey)(void)
+
+    override def deleteSshKeys(username: String): F[Unit] =
+      listSshPublicKeysForUser(username)
+        .map(_.sshPublicKeyId())
+        .flatMap(deleteSshPublicKey(username, _))
+        .compile
+        .drain
 
   }
 
