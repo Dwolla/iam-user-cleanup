@@ -33,7 +33,7 @@ lazy val `iam-user-cleanup` = (project in file("."))
         "software.amazon.awssdk" % "ecs" % awsJavaSdkVersion,
         "co.fs2" %% "fs2-core" % fs2Version,
         "co.fs2" %% "fs2-reactive-streams" % fs2Version,
-        "org.scala-lang.modules" %% "scala-collection-compat" % "2.1.1",
+        "org.scala-lang.modules" %% "scala-collection-compat" % "2.1.6",
         "io.circe" %% "circe-core" % circeVersion,
         "io.circe" %% "circe-generic" % circeVersion,
         "org.scalatest" %% "scalatest" % "3.2.10" % Test,
