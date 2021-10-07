@@ -25,7 +25,7 @@ lazy val `iam-user-cleanup` = (project in file("."))
     libraryDependencies ++= {
       val circeVersion = "0.14.1"
       val fs2Version = "2.5.9"
-      val awsJavaSdkVersion = "2.17.43"
+      val awsJavaSdkVersion = "2.17.52"
 
       Seq(
         "com.dwolla" %% "scala-cloudformation-custom-resource" % "4.0.0-M3",
