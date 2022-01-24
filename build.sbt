@@ -36,7 +36,7 @@ lazy val `iam-user-cleanup` = (project in file("."))
         "org.scala-lang.modules" %% "scala-collection-compat" % "2.6.0",
         "io.circe" %% "circe-core" % circeVersion,
         "io.circe" %% "circe-generic" % circeVersion,
-        "org.scalatest" %% "scalatest" % "3.2.10" % Test,
+        "org.scalatest" %% "scalatest" % "3.2.11" % Test,
         "com.dwolla" %% "testutils-scalatest-fs2" % "2.0.0-M6" % Test,
         "io.chrisdavenport" %% "cats-scalacheck" % "0.3.1" % Test,
         "io.circe" %% "circe-literal" % circeVersion % Test,
