@@ -1,99 +1,74 @@
 package com.dwolla.lambda.iam
 
-import com.dwolla.lambda.cloudformation.CloudFormationRequestType.{CreateRequest, DeleteRequest, UpdateRequest}
-import com.dwolla.lambda.cloudformation._
 import com.dwolla.lambda.iam.IamUserCleanupLambda.RequestValidation
+import com.dwolla.lambda.iam.model._
+import com.eed3si9n.expecty.Expecty.expect
+import feral.lambda.cloudformation.CloudFormationRequestType._
+import feral.lambda.cloudformation._
 import io.circe.JsonObject
 import io.circe.literal._
-import model._
-import org.scalatest.EitherValues
-import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.matchers.should.Matchers
+import io.circe.syntax._
+import munit.FunSuite
+import org.http4s.syntax.all._
 
-class RequestValidationSpec extends AnyFlatSpec with Matchers with EitherValues {
-  private val responseUrl = "response-url"
-  private val stackId = "stack-id".asInstanceOf[StackId]
-  private val requestId = "request-id".asInstanceOf[RequestId]
-  private val resourceType = "resource-type".asInstanceOf[ResourceType]
-  private val logicalResourceId = "logical-resource-id".asInstanceOf[LogicalResourceId]
-  private val resourceProperties = json"""{
-                                    "userArn": "user-arn",
-                                    "username": "user"
-                                  }""".asObject
-  private val physicalResourceId = "user-arn".asInstanceOf[PhysicalResourceId]
-  private val username = "user"
-  private val emptyResourceProperties = Option(JsonObject.empty)
+class RequestValidationSpec extends FunSuite {
+  private val responseUrl = uri"https://response-url"
+  private val stackId = StackId("stack-id")
+  private val requestId = RequestId("request-id")
+  private val resourceType = ResourceType("resource-type")
+  private val logicalResourceId = LogicalResourceId("logical-resource-id")
+  private val resourceProperties = JsonObject("userArn" -> "user-arn".asJson, "username" -> "user".asJson)
+  private val physicalResourceId = PhysicalResourceId.unsafeApply("user-arn")
+  private val username = Username("user")
+  private val emptyResourceProperties = JsonObject.empty
 
-  behavior of "Create requests"
+  test("Create requests should be valid when no physical resource id is specified but User ARN is in Resource Properties") {
+    val req = CloudFormationCustomResourceRequest[JsonObject](CreateRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, None, resourceProperties, None)
 
-  it should "be valid when no physical resource id is specified but User ARN is in Resource Properties" in {
-    val req = CloudFormationCustomResourceRequest(CreateRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, None, resourceProperties, None)
-
-    new RequestValidation(req).validated should be(Right(RequestParameters(NoOp, physicalResourceId, username)))
+    assertEquals(new RequestValidation(req).validated, Right(RequestParameters(NoOp, physicalResourceId, username)))
   }
 
-  it should "be invalid when a physical resource id is specified or missing resource properties" in {
-    val req = CloudFormationCustomResourceRequest(CreateRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, Option("physicalResourceId").map(_.asInstanceOf[PhysicalResourceId]), None, None)
+  test("Create requests should be invalid when a physical resource id is specified or missing resource properties") {
+    val req = CloudFormationCustomResourceRequest(CreateRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, PhysicalResourceId("physicalResourceId"), emptyResourceProperties, None)
 
-    val validated = new RequestValidation(req).validated
-    validated.left.value.toList should contain(CreateRequestWithPhysicalResourceId)
-    validated.left.value.toList should contain(MissingResourcePropertiesValidationError)
+    expect(new RequestValidation(req).validated.swap.exists(_.toList.contains(CreateRequestWithPhysicalResourceId)))
   }
 
-  it should "be invalid when a username is missing" in {
+  test("Create requests should be invalid when a username is missing") {
     val req = CloudFormationCustomResourceRequest(CreateRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, None, emptyResourceProperties, None)
 
     val validated = new RequestValidation(req).validated
-    validated.left.value.toList should contain(MissingResourceProperty("username"))
-    validated.left.value.toList should contain(MissingResourceProperty("userArn"))
+    expect(validated.swap.exists(_.toList.contains(MissingResourceProperty("username"))))
+    expect(validated.swap.exists(_.toList.contains(MissingResourceProperty("userArn"))))
   }
 
-  behavior of "Update requests"
-
-  it should "be valid when a physical resource ID and required properties are present" in {
+  test("Update requests should be valid when a physical resource ID and required properties are present") {
     val req = CloudFormationCustomResourceRequest(UpdateRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, Option(physicalResourceId), resourceProperties, None)
 
-    new RequestValidation(req).validated should be(Right(RequestParameters(NoOp, physicalResourceId, username)))
+    assertEquals(new RequestValidation(req).validated, Right(RequestParameters(NoOp, physicalResourceId, username)))
   }
 
-  it should "be invalid when a physical resource ID and required properties are missing" in {
+  test("Update requests should be invalid when a physical resource ID and required properties are missing") {
     val req = CloudFormationCustomResourceRequest(UpdateRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, None, emptyResourceProperties, None)
 
     val validated = new RequestValidation(req).validated
-    validated.left.value.toList should contain(MissingPhysicalResourceId)
-    validated.left.value.toList should contain(MissingResourceProperty("username"))
-    validated.left.value.toList should contain(MissingResourceProperty("userArn"))
+    expect(validated.swap.exists(_.toList.contains(MissingPhysicalResourceId)))
+    expect(validated.swap.exists(_.toList.contains(MissingResourceProperty("username"))))
+    expect(validated.swap.exists(_.toList.contains(MissingResourceProperty("userArn"))))
   }
 
-  it should "be invalid when resource properties is missing" in {
-    val req = CloudFormationCustomResourceRequest(UpdateRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, Option(physicalResourceId), None, None)
-
-    val validated = new RequestValidation(req).validated
-    validated.left.value.toList should contain(MissingResourcePropertiesValidationError)
-  }
-
-  behavior of "Delete requests"
-
-  it should "be valid when a physical resource ID and required properties are present" in {
+  test("Delete requests should be valid when a physical resource ID and required properties are present") {
     val req = CloudFormationCustomResourceRequest(DeleteRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, Option(physicalResourceId), resourceProperties, None)
 
-    new RequestValidation(req).validated should be(Right(RequestParameters(Delete, physicalResourceId, username)))
+    assertEquals(new RequestValidation(req).validated, Right(RequestParameters(Delete, physicalResourceId, username)))
   }
 
-  it should "be invalid when a physical resource ID and required properties are missing" in {
+  test("Delete requests should be invalid when a physical resource ID and required properties are missing") {
     val req = CloudFormationCustomResourceRequest(DeleteRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, None, emptyResourceProperties, None)
 
     val validated = new RequestValidation(req).validated
-    validated.left.value.toList should contain(MissingPhysicalResourceId)
-    validated.left.value.toList should contain(MissingResourceProperty("username"))
-    validated.left.value.toList should contain(MissingResourceProperty("userArn"))
+    expect(validated.swap.exists(_.toList.contains(MissingPhysicalResourceId)))
+    expect(validated.swap.exists(_.toList.contains(MissingResourceProperty("username"))))
+    expect(validated.swap.exists(_.toList.contains(MissingResourceProperty("userArn"))))
   }
-
-  it should "be invalid when resource properties is missing" in {
-    val req = CloudFormationCustomResourceRequest(DeleteRequest, responseUrl, stackId, requestId, resourceType, logicalResourceId, Option(physicalResourceId), None, None)
-
-    val validated = new RequestValidation(req).validated
-    validated.left.value.toList should contain(MissingResourcePropertiesValidationError)
-  }
-
 }

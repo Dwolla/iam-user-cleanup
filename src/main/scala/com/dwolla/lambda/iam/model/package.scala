@@ -3,8 +3,9 @@ package com.dwolla.lambda.iam.model
 import cats._
 import cats.data._
 import cats.implicits._
-import com.dwolla.lambda.cloudformation._
+import feral.lambda.cloudformation.PhysicalResourceId
 import io.circe._
+import io.circe.generic.semiauto._
 
 object RequestValidationException {
   private implicit val showRequestValidationError: Show[RequestValidationError] = Show.fromToString[RequestValidationError]
@@ -18,10 +19,16 @@ case class RequestValidationException(issues: NonEmptyList[RequestValidationErro
 sealed trait RequestValidationError
 case object CreateRequestWithPhysicalResourceId extends RequestValidationError
 case object MissingPhysicalResourceId extends RequestValidationError
+case object InvalidPhysicalResourceId extends RequestValidationError
 case object MissingResourcePropertiesValidationError extends RequestValidationError
 case class MissingResourceProperty(propertyName: String) extends RequestValidationError
 case class InvalidUsername(json: Json, cause: Exception) extends Exception(cause) with RequestValidationError
-case class RequestParameters(action: Action, physicalResourceId: PhysicalResourceId, username: String)
+case class RequestParameters(action: Action, physicalResourceId: PhysicalResourceId, username: Username)
+
+case class Username(username: String)
+object Username {
+  implicit val usernameCodec: Codec[Username] = deriveCodec
+}
 
 sealed trait Action
 case object NoOp extends Action

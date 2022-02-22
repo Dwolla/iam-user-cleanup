@@ -1,4 +1,6 @@
 service: iam-user-cleanup
+useDotenv: true
+frameworkVersion: ^3.2.1
 
 provider:
   name: aws
@@ -6,7 +8,6 @@ provider:
   memorySize: 1024
   timeout: 60
   region: us-west-2
-  stage: ${env:STAGE}
   deploymentBucket:
     name: ${env:BUCKET}
     serverSideEncryption: "AES256"
@@ -28,11 +29,10 @@ provider:
   logRetentionInDays: 7
   stackTags:
     Creator: serverless
-    Environment: ${env:STAGE}
+    Environment: ${opt:stage}
     Project: ${self:service}
     Team: platform
     Visibility: internal
-  lambdaHashingVersion: 20201221
 
 package:
   artifact: ${env:ARTIFACT_PATH}
@@ -49,4 +49,4 @@ resources:
       Value:
         'Fn::GetAtt': [IamUserCleanupLambdaFunction, Arn]
       Export:
-        Name: ${self:service}:${env:STAGE}:IamUserCleanupArn
+        Name: ${self:service}:${opt:stage}:IamUserCleanupArn
