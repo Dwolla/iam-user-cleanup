@@ -9,10 +9,7 @@ stages:
     nodeLabel: nvm-sbt-deployer
     steps:
       - |
-        export ACCOUNT=455620323323
-        export STAGE=admin
-        export BUCKET=dwolla-code
         . ${NVM_DIR}/nvm.sh --no-use
         nvm install
         npm install -g npm && npm install -g serverless
-        sbt deploy
+        sbt "deploy Admin"

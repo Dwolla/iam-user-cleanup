@@ -1,14 +1,19 @@
 package com.dwolla.lambda.iam
 
 import cats.effect._
-import com.dwolla.lambda.cloudformation._
+import cats.effect.syntax.all._
+import feral.lambda.cloudformation.CloudFormationCustomResourceRequest
+import feral.lambda.{INothing, IOLambda, LambdaEnv}
+import io.circe.JsonObject
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-class Handler() extends IOCustomResourceHandler {
-  lazy val iamResource: Resource[IO, IamAlg[IO]] = IamAlg.resource[IO]
-
-  private val proxied =
-    new IamUserCleanupLambda(iamResource)
-
-  override def handleRequest(req: CloudFormationCustomResourceRequest): IO[HandlerResponse] =
-    proxied.handleRequest(req)
+class Handler extends IOLambda[CloudFormationCustomResourceRequest[JsonObject], INothing] {
+  override def handler: Resource[IO, LambdaEnv[IO, CloudFormationCustomResourceRequest[JsonObject]] => IO[Option[INothing]]] = {
+    Slf4jLogger
+      .create[IO]
+      .toResource
+      .flatMap { implicit logger =>
+        new IamUserCleanupLambda[IO](IamAlg.resource[IO]).handler
+      }
+  }
 }
