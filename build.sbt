@@ -45,7 +45,7 @@ lazy val `iam-user-cleanup` = (project in file("."))
         "io.circe" %% "circe-generic" % circeVersion,
         "org.http4s" %% "http4s-ember-client" % http4sVersion,
         "org.typelevel" %% "log4cats-slf4j" % log4catsVersion,
-        "org.typelevel" %% "cats-effect" % "3.3.5",
+        "org.typelevel" %% "cats-effect" % "3.3.6",
         "com.amazonaws" % "aws-lambda-java-log4j2" % "1.5.1" % Runtime,
         "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.17.1" % Runtime,
         "org.typelevel" %% "munit-cats-effect-3" % "1.0.7" % Test,
