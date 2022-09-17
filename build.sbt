@@ -57,7 +57,7 @@ lazy val `iam-user-cleanup` = (project in file("."))
         "io.chrisdavenport" %% "cats-scalacheck" % "0.3.1" % Test,
         "io.circe" %% "circe-literal" % circeVersion % Test,
         "io.circe" %% "circe-testing" % circeVersion % Test,
-        "com.eed3si9n.expecty" %% "expecty" % "0.15.4" % Test,
+        "com.eed3si9n.expecty" %% "expecty" % "0.16.0" % Test,
       )
     },
   )
