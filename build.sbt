@@ -54,7 +54,7 @@ lazy val `iam-user-cleanup` = (project in file("."))
         "org.typelevel" %% "scalacheck-effect" % scalacheckEffectVersion % Test,
         "org.typelevel" %% "scalacheck-effect-munit" % scalacheckEffectVersion % Test,
         "org.typelevel" %% "log4cats-noop" % log4catsVersion % Test,
-        "io.chrisdavenport" %% "cats-scalacheck" % "0.3.1" % Test,
+        "io.chrisdavenport" %% "cats-scalacheck" % "0.3.2" % Test,
         "io.circe" %% "circe-literal" % circeVersion % Test,
         "io.circe" %% "circe-testing" % circeVersion % Test,
         "com.eed3si9n.expecty" %% "expecty" % "0.15.4" % Test,
