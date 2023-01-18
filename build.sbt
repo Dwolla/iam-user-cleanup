@@ -35,7 +35,7 @@ lazy val `iam-user-cleanup` = (project in file("."))
       val awsJavaSdkVersion = "2.17.129"
       val scalacheckEffectVersion = "1.0.4"
       val log4catsVersion = "2.3.1"
-      val http4sVersion = "0.23.12"
+      val http4sVersion = "0.23.18"
 
       Seq(
         "org.typelevel" %% "feral-lambda-cloudformation-custom-resource" % feralVersion,
