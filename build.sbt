@@ -34,7 +34,7 @@ lazy val `iam-user-cleanup` = (project in file("."))
       val circeVersion = "0.14.2"
       val awsJavaSdkVersion = "2.17.129"
       val scalacheckEffectVersion = "1.0.4"
-      val log4catsVersion = "2.3.1"
+      val log4catsVersion = "2.3.2"
       val http4sVersion = "0.23.12"
 
       Seq(
